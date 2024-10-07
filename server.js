@@ -7,6 +7,13 @@ require('dotenv').config();
 
 const app = express();
 
+
+// connect to db
+mongoose
+  .connect(process.env.DATABASE, {})
+  .then(() => console.log("DB connected"))
+  .catch((err) => console.log("DB Error => ", err));
+
 // import routes
 const authRoutes = require('./routes/auth');
 
