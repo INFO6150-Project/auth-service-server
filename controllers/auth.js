@@ -71,3 +71,38 @@ exports.accountActivation = async (req, res) => {
     });
   }
 };
+
+exports.signin = async (req, res) => {
+    const { email, password } = req.body;
+  
+    try {
+      // Check if user exists
+      const user = await User.findOne({ email }).exec();
+      if (!user) {
+        return res.status(400).json({
+          error: 'User with that email does not exist. Please signup.',
+        });
+      }
+  
+      // Authenticate user
+      if (!user.authenticate(password)) {
+        return res.status(400).json({
+          error: 'Email and password do not match.',
+        });
+      }
+  
+      // Generate token and send to client
+      const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      const { _id, name, role } = user;
+  
+      return res.json({
+        token,
+        user: { _id, name, email, role },
+      });
+    } catch (err) {
+      console.error('Signin Error:', err);
+      return res.status(500).json({
+        error: 'An error occurred during sign-in. Please try again later.',
+      });
+    }
+  };
