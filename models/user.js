@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema({
         default: 'subscriber'
     },
     resetPasswordLink: {
-        data: String,
+        type: String,
         default: ''
     },
 }, {timestamps: true});
@@ -64,7 +64,7 @@ userSchema.methods = {
     },
 
     makeSalt: function() {
-        return Math.round(new Data().valueOf() * Math.random());
+        return Math.round(new Date().valueOf() * Math.random());
     }
 };
 
