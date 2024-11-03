@@ -1,43 +1,73 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
-const sgMail  = require('@sendgrid/mail');
+const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 exports.signup = async (req, res) => {
-  const {name, email, password} = req.body;
+  const { name, email, password } = req.body;
 
-  const existingUser = await User.findOne({ email }).exec();
+  try {
+    // Check if user already exists
+    const existingUser = await User.findOne({ email }).exec();
     if (existingUser) {
-        return res.status(400).json({
-                error: 'Email is taken'
-            });
+      return res.status(400).json({ error: 'Email is taken' });
     }
 
-    const token = jwt.sign({name, email, password}, process.env.JWT_ACCOUNT_ACTIVATION, {expiresIn: '10m'});
+    // Create JWT token for account activation
+    const token = jwt.sign({ name, email, password }, process.env.JWT_ACCOUNT_ACTIVATION, { expiresIn: '10m' });
 
+    // Set up email data
     const emailData = {
-        from: process.env.EMAIL_FROM,
-        to: email,
-        subject: `Account activation link`,
-        html: `
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: 'Account activation link',
+      html: `
         <p>Hello ${name}, Please use the following link to activate your NUConnect Account: </p>
         <p>${process.env.CLIENT_URL}/auth/activate/${token}</p>
         <hr />
-        <p>This email may contain sensitive information, DONT Share it</p>
+        <p>This email may contain sensitive information. Do not share it.</p>
         <p>${process.env.CLIENT_URL}</p>
-        `
-    }
+      `,
+    };
 
-    sgMail.send(emailData).then(sent => {
-        // console.log('SIGNUP EMAIL SENT: ', sent);
-        return res.json({
-            message: `Email has been sent to ${email}. Follow the instruction to activate your account.`
-        });
-    })
-    .catch(err => {
-        // console.log('SIGNUP EMAIL SENT: ', err);
-        return res.json({
-            message: err.message
-        });
+    // Send activation email
+    await sgMail.send(emailData);
+    res.json({
+      message: `Email has been sent to ${email}. Follow the instructions to activate your account.`,
     });
+  } catch (err) {
+    console.error('Signup Error:', err);
+    res.status(500).json({
+      error: 'An error occurred during signup. Please try again later.',
+    });
+  }
+};
+
+exports.accountActivation = async (req, res) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ message: 'Something went wrong. Try again.' });
+  }
+
+  try {
+    // Verify JWT token
+    const decoded = jwt.verify(token, process.env.JWT_ACCOUNT_ACTIVATION);
+    const { name, email, password } = decoded;
+
+    // Create new user and save to the database
+    const user = new User({ name, email, password });
+    await user.save();
+
+    res.json({
+      message: 'Signup success. Please sign in',
+    });
+  } catch (err) {
+    console.error('Account Activation Error:', err);
+    res.status(401).json({
+      error: err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError' 
+        ? 'Expired or invalid link. Please sign up again.'
+        : 'An error occurred during account activation. Please try again.',
+    });
+  }
 };
